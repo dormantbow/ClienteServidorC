@@ -4,7 +4,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define SERVER_PORT 5000       // Porta para comunicação
+#define SERVER_PORT 80      // Porta para comunicação
 #define BUFFER_SIZE 1024       // Tamanho do buffer para mensagens
 
 int main() {
