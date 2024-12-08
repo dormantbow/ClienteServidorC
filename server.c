@@ -1,58 +1,81 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
-#define PORT 5000
-#define BUFFER_SIZE 1024
+#define SERVER_PORT 5000       // Porta para comunicação
+#define BUFFER_SIZE 1024       // Tamanho do buffer para mensagens
 
 int main() {
-    int server_fd, new_socket;
-    struct sockaddr_in address;
-    int addr_len = sizeof(address);
-    char buffer[BUFFER_SIZE] = {0};
+    int server_socket, client_socket;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len;
+    char buffer[BUFFER_SIZE];
 
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("Falha ao criar socket");
-        exit(EXIT_FAILURE);
+    // Criação do socket
+    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("Erro ao criar o socket do servidor");
+        return 1;
     }
 
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
+    // Configuração do endereço do servidor
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY; // Aceitar qualquer IP
+    server_addr.sin_port = htons(SERVER_PORT);
 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        perror("Falha no bind");
-        exit(EXIT_FAILURE);
+    // Associa o socket ao endereço e porta
+    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Erro ao associar o socket ao endereço");
+        return 1;
     }
 
-    if (listen(server_fd, 3) < 0) {
-        perror("Falha no listen");
-        exit(EXIT_FAILURE);
+    // Coloca o servidor para ouvir conexões
+    if (listen(server_socket, 5) < 0) {
+        perror("Erro ao colocar o servidor para escutar");
+        return 1;
     }
 
-    printf("Servidor aguardando conexões na porta %d...\n", PORT);
+    printf("\nServidor está ouvindo na porta %d...\n", SERVER_PORT);
 
-    if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addr_len)) < 0) {
-        perror("Falha no accept");
-        exit(EXIT_FAILURE);
-    }
-
+    // Loop para aceitar múltiplas conexões
     while (1) {
-        memset(buffer, 0, BUFFER_SIZE);
-        read(new_socket, buffer, BUFFER_SIZE);
+        client_len = sizeof(client_addr);
+        client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
 
-        if (strcmp(buffer, "exit\n") == 0) {
-            printf("Conexão encerrada pelo cliente.\n");
-            break;
+        if (client_socket < 0) {
+            perror("Erro ao aceitar conexão");
+            continue;
         }
 
-        printf("Mensagem recebida: %s", buffer);
-        send(new_socket, buffer, strlen(buffer), 0);
+        printf("\nConexão recebida de %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+
+        // Processa as mensagens do cliente
+        while (1) {
+            memset(buffer, 0, BUFFER_SIZE); // Limpa o buffer
+            int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
+            if (bytes_received < 0) {
+                perror("Erro ao receber mensagem do cliente");
+                break;
+            } else if (bytes_received == 0) {
+                printf("Cliente desconectado.\n");
+                break;
+            }
+
+            // Exibe a mensagem recebida do cliente
+            printf("Mensagem recebida do cliente: %s\n", buffer);
+
+            // Envia uma resposta para o cliente
+            char response[] = "Mensagem recebida com sucesso!";
+            send(client_socket, response, strlen(response), 0);
+        }
+
+        // Fecha o socket do cliente
+        close(client_socket);
+        printf("Conexão encerrada com o cliente.\n");
     }
 
-    close(new_socket);
-    close(server_fd);
+    // Fecha o socket do servidor
+    close(server_socket);
     return 0;
 }
